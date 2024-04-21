@@ -15,7 +15,7 @@
 
 4. Repackage the ISO
 
-    mkisofs -relaxed-filenames -J -R -o usb_ks_esxi.iso -b ISOLINUX.BIN -c BOOT.CAT -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -eltorito-platform efi -b EFIBOOT.IMG -no-emul-boot /esxi-iso-extracted
+        mkisofs -relaxed-filenames -J -R -o usb_ks_esxi.iso -b ISOLINUX.BIN -c BOOT.CAT -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -eltorito-platform efi -b EFIBOOT.IMG -no-emul-boot /esxi-iso-extracted
 
 
 ## Create the Kickstart File
