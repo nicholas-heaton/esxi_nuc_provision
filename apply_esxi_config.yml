@@ -1,0 +1,202 @@
+---
+- name: Apply ESXi Host Configurations # Assumes vCenter, Datastore, vDS, and ESXi Cluster are already built and configured.
+  hosts: all
+  gather_facts: false
+  vars:
+    esxi_username: root
+    esxi_password: ASecurePassword!
+    vcenter_hostname: vmvc-01.home.lan
+    vcenter_username: administrator@vsphere.local
+    vcenter_password: ASecurePassword!
+    ntp_server: 192.168.1.9
+    iscsi_server: 10.0.12.2
+    iscsi_target: iqn.2005-10.org.freenas.ctl:iscsi-server
+    datastore_name: home-ds-8tb
+    vmotion_netmask: 255.255.255.0
+    vmotion_gateway: 10.0.11.1
+    storage_netmask: 255.255.255.0
+    dvs_name: Home-DVS
+    vmotion_portgroup: VL11-vMotion
+    storage_portgroup: VL12-Storage
+    esxi_license: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX
+  tasks:
+    - name: Enter Maintenance Mode
+      community.vmware.vmware_maintenancemode:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        state: present
+      delegate_to: localhost
+
+    - name: Start and Enable SSH Service
+      community.vmware.vmware_host_service_manager:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        service_name: TSM-SSH
+        service_policy: 'on'
+        state: present
+      delegate_to: localhost
+
+    - name: Set NTP Servers
+      community.vmware.vmware_host_ntp:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        state: present
+        ntp_servers:
+          - '{{ ntp_server }}'
+      delegate_to: localhost
+
+    - name: Start and Enable SSH Service
+      community.vmware.vmware_host_service_manager:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        service_name: ntpd
+        service_policy: 'on'
+        state: present
+      delegate_to: localhost
+
+    - name: Disable CEIP, Disable PowerOff, Supress SSH Warning, Enable FollowHWMac
+      community.vmware.vmware_host_config_manager:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        options:
+          'UserVars.HostClientCEIPOptIn': 2
+          'UserVars.SuppressShellWarning': 1
+          'Misc.PowerOffEnable': 0     # Fix - Intel NUC issue. Host reboots instead of poweroff with shutdown command.
+                                       # Use this to put the host in a 'ready for shutdown' state and power off from AMT/power button.
+          'Net.FollowHardwareMac': 1   # Fix - Intel NUC issue with MAC address conflict.
+                                       # ESXi host will copy MAC of vmnic0 and assign to vmk0.
+                                       # Normally this is not an issue, but since Intel AMT uses the MAC of the physical interface too,
+                                       # This creates a duplicate MAC address issue when vmk0 runs on another vmnic.
+                                       # Enable this to update the vmk0 MAC address every time vmk0 moves to a new vmnic interface.
+      delegate_to: localhost
+
+    # Broken, just add manually.
+    # Error: {"changed": false, "msg": "module 'ssl' has no attribute 'wrap_socket'"}
+    # - name: Add ESXi Host to vCenter
+    #   community.vmware.vmware_host:
+    #     hostname: '{{ vcenter_hostname }}'
+    #     username: '{{ vcenter_username }}'
+    #     password: '{{ vcenter_password }}'
+    #     datacenter: Charlotte
+    #     cluster: Home
+    #     esxi_hostname: '{{ esxi_hostname }}'
+    #     esxi_username: '{{ esxi_username }}'
+    #     esxi_password: '{{ esxi_password }}'
+    #     state: present
+    #   delegate_to: localhost
+    - name: Pause - Manually add host to vCenter and migrate Host to vDS
+      ansible.builtin.pause:
+        prompt: "Login to vCenter and manually add the ESXi host to vCenter and the vDS. Press 'Enter' when complete."
+        # Althrough a playbook exists for adding a host to vCenter, the code seems to be broken for python 3.12.
+        # Ansible does not currently have a method for migrating a host, vmnic, and vmk to a vDS in one shot like you can in the GUI.
+        # Therefore, you must do this step in the GUI.
+
+    - name: Add vMotion vmkernel port with vMotion TCP/IP stack on vDS
+      community.vmware.vmware_vmkernel:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        dvswitch_name: '{{ dvs_name }}'
+        portgroup_name: '{{ vmotion_portgroup }}'
+        network:
+          type: 'static'
+          ip_address: '{{ vmotion_ip }}'
+          subnet_mask: '{{ vmotion_netmask }}'
+          default_gateway: '{{ vmotion_gateway }}'
+          tcpip_stack: vmotion
+        state: present
+      delegate_to: localhost
+
+    - name: Add Storage vmkernel port on vDS
+      community.vmware.vmware_vmkernel:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        dvswitch_name: '{{ dvs_name }}'
+        portgroup_name: '{{ storage_portgroup }}'
+        network:
+          type: 'static'
+          ip_address: '{{ storage_ip }}'
+          subnet_mask: '{{ storage_netmask }}'
+        state: present
+      delegate_to: localhost
+
+    - name: Enable iSCSI
+      community.vmware.vmware_host_iscsi:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        state: enabled
+      delegate_to: localhost
+
+    - name: Add iSCSI Target
+      community.vmware.vmware_host_iscsi:
+        hostname: "{{ vcenter_hostname }}"
+        username: "{{ vcenter_username }}"
+        password: "{{ vcenter_password }}"
+        esxi_hostname: "{{ esxi_hostname }}"
+        iscsi_config:
+          vmhba_name: vmhba64
+          send_target:
+            address: "{{ iscsi_server }}"
+        state: present
+      delegate_to: localhost
+
+    - name: Rescan ESXi Host HBAs
+      community.vmware.vmware_host_scanhba:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        refresh_storage: true
+      delegate_to: localhost
+
+    - name: Get SCSI Disk Information
+      community.vmware.vmware_host_scsidisk_info:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+      delegate_to: localhost
+      register: scsi_disks
+
+    - name: Validate Datastore is Present
+      community.vmware.vmware_host_facts:
+        hostname: "{{ esxi_hostname }}"
+        username: "{{ esxi_username }}"
+        password: "{{ esxi_password }}"
+      register: host_facts
+      delegate_to: localhost
+      failed_when: datastore_name not in host_facts.ansible_facts.ansible_datastore | selectattr('name', 'defined') | map(attribute='name')
+
+    - name: Assign License to ESXi Host
+      community.vmware.vcenter_license:
+        hostname: '{{ vcenter_hostname }}'
+        username: '{{ vcenter_username }}'
+        password: '{{ vcenter_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        license: '{{ esxi_license }}'
+        state: present
+      delegate_to: localhost
+
+    - name: Exit Maintenance Mode
+      community.vmware.vmware_maintenancemode:
+        hostname: '{{ esxi_hostname }}'
+        username: '{{ esxi_username }}'
+        password: '{{ esxi_password }}'
+        esxi_hostname: '{{ esxi_hostname }}'
+        state: absent
+      delegate_to: localhost

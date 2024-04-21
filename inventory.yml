@@ -1,0 +1,23 @@
+---
+all:
+  hosts:
+    esxi-01:
+      ip_address: 192.168.1.11
+      esxi_hostname: esxi-01.home.lan
+      vmotion_ip: 10.0.11.11
+      storage_ip: 10.0.12.11
+    esxi-02:
+      ip_address: 192.168.1.12
+      esxi_hostname: esxi-02.home.lan
+      vmotion_ip: 10.0.11.12
+      storage_ip: 10.0.12.12
+    esxi-03:
+      ip_address: 192.168.1.15
+      esxi_hostname: esxi-03.home.lan
+      vmotion_ip: 10.0.11.13
+      storage_ip: 10.0.12.13
+    esxi-04:
+      ip_address: 192.168.1.19
+      esxi_hostname: esxi-04.home.lan
+      vmotion_ip: 10.0.11.14
+      storage_ip: 10.0.12.14
