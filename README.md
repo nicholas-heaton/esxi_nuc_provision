@@ -14,6 +14,7 @@
   This tells the ESXi installer to look for a KS.CFG kickstart file on every USB drive mounted to the system until a valid file is found.
 
 4. Repackage the ISO
+   Run this command, where esxi-iso-extracted is the path to where you extracted the original ISO
 
         mkisofs -relaxed-filenames -J -R -o usb_ks_esxi.iso -b ISOLINUX.BIN -c BOOT.CAT -no-emul-boot -boot-load-size 4 -boot-info-table -eltorito-alt-boot -eltorito-platform efi -b EFIBOOT.IMG -no-emul-boot /esxi-iso-extracted
 
@@ -25,10 +26,13 @@ A ks.cfg file has been provided. Edit this file as needed, and copy it to a Flas
 Note: if you are using Secure Boot, you cannot run the %firstboot script as noted here:
 https://docs.vmware.com/en/VMware-vSphere/7.0/com.vmware.esxi.upgrade.doc/GUID-61A14EBB-5CF3-43EE-87EF-DB8EC6D83698.html
 
+For a full list of kickstart options, refer to:
+https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-esxi-installation/GUID-51BD0186-50BF-4D0D-8410-79F165918B16.html
+
 
 ## Config ESXi
 
-Once the ESXi installation is complete, configure the host by running the playbook against host.
+Once the ESXi installation is complete, configure the host by running the playbook against the host.
 
 ## Setup
     python3 -m venv venv
